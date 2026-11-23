@@ -6,9 +6,11 @@ on:
     paths:
       - ".github/workflows/build-apks.yml"
       - "shuttle-code-latest.zip"
+    tags:
+      - "*"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -128,10 +130,21 @@ jobs:
             echo "$(basename "$apk"): zipalign OK ($(stat -c '%s' "$apk") bytes)"
           done
 
-      - name: Upload verified APKs
+      - name: Upload verified APKs as workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: shuttle-apks-release
           path: source/app/build/outputs/apk/standalone/release/*.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish separate APK files to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            source/app/build/outputs/apk/standalone/release/shuttle-standalone-v1-arm64.apk
+            source/app/build/outputs/apk/standalone/release/shuttle-standalone-v1-armv7.apk
+            source/app/build/outputs/apk/standalone/release/shuttle-standalone-v1.apk
+          fail_on_unmatched_files: true
+          generate_release_notes: true
