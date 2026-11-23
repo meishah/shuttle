@@ -110,7 +110,7 @@ jobs:
             local apk="$1"
             local expected="$2"
             local actual
-            actual=$(unzip -Z1 "$apk" | awk -F/ '$1 == "lib" && NF >= 3 && $3 ~ /\\.so$/ {print $2}' | sort -u | paste -sd ' ' -)
+            actual=$(unzip -Z1 "$apk" | awk -F/ '$1 == "lib" && NF >= 3 && $3 ~ /\.so$/ {print $2}' | sort -u | paste -sd ' ' -)
             test -n "$actual" || { echo "No native ABI libraries found in $apk"; return 1; }
             test "$actual" = "$expected" || {
               echo "ABI mismatch in $apk: expected [$expected], found [$actual]"
