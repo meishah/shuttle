@@ -2,6 +2,10 @@ name: Build Shuttle APKs
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/build-apks.yml"
+      - "shuttle-code-latest.zip"
 
 permissions:
   contents: read
