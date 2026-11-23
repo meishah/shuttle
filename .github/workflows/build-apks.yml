@@ -60,218 +60,34 @@ jobs:
         run: |
           python3 - <<'PY'
           import os
-          import re
           from pathlib import Path
 
-          tag = os.environ["RELEASE_TAG"]
-          version = tag.removeprefix("v")
-          match = re.fullmatch(r"(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)", version)
-          if not match:
-              raise SystemExit(f"Release tag must be semantic version MAJOR.MINOR.PATCH (optionally prefixed with v): {tag}")
-
-          major, minor, patch = map(int, match.groups())
+          tag = os.environ['RELEASE_TAG']
+          version = tag[1:] if tag.startswith('v') else tag
+          parts = version.split('.')
+          if len(parts) != 3 or not all(part.isdigit() for part in parts):
+              raise SystemExit('Use a release tag like v1.0.1 or 1.0.1')
+          major, minor, patch = map(int, parts)
           if minor > 999 or patch > 999:
-              raise SystemExit("MINOR and PATCH components must be <= 999 for Android versionCode encoding.")
-          version_code = major * 1_000_000 + minor * 1_000 + patch
-          if version_code < 50813 or version_code > 2_100_000_000:
-              raise SystemExit(f"Computed versionCode {version_code} is outside the supported project range.")
+              raise SystemExit('MINOR and PATCH must each be 999 or lower')
+          version_code = major * 1000000 + minor * 1000 + patch
+          if version_code < 50813 or version_code > 2100000000:
+              raise SystemExit(f'Computed Android versionCode is out of range: {version_code}')
 
-          catalog = Path("gradle/libs.versions.toml")
-          content = catalog.read_text()
-          content, name_count = re.subn(r'(?m)^versionName\\s*=\\s*"[^"]*"\\s*        env:
-          SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          test -n "$SIGNING_STORE_PASSWORD"
-          test -n "$SIGNING_KEY_ALIAS"
-          test -n "$SIGNING_KEY_PASSWORD"
-          ./gradlew --no-daemon :app:assembleStandaloneRelease
-
-      - name: Verify APK signatures, certificates and ABIs
-        shell: bash
-        run: |
-          set -euo pipefail
-          APK_DIR="source/app/build/outputs/apk/standalone/release"
-          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
-          ZIPALIGN="$ANDROID_HOME/build-tools/36.0.0/zipalign"
-
-          test -x "$APKSIGNER"
-          test -x "$ZIPALIGN"
-          test -d "$APK_DIR"
-
-          ARM64="$APK_DIR/shuttle-standalone-v1-arm64.apk"
-          ARMV7="$APK_DIR/shuttle-standalone-v1-armv7.apk"
-          UNIVERSAL="$APK_DIR/shuttle-standalone-v1.apk"
-          for apk in "$ARM64" "$ARMV7" "$UNIVERSAL"; do
-            test -s "$apk" || { echo "Missing expected APK: $apk"; exit 1; }
-          done
-
-          apk_count=$(find "$APK_DIR" -maxdepth 1 -type f -name '*.apk' | wc -l)
-          test "$apk_count" -eq 3 || { echo "Expected exactly 3 APKs, found $apk_count"; exit 1; }
-
-          cert_digest() {
-            local apk="$1"
-            local report
-            report=$("$APKSIGNER" verify --verbose --print-certs "$apk" 2>&1) || {
-              echo "$report"
-              echo "APK signature verification failed: $apk"
-              return 1
-            }
-            echo "$report"
-            local digests
-            digests=$(printf '%s\n' "$report" | sed -n 's/.*certificate SHA-256 digest: //p' | sort -u)
-            test -n "$digests" || { echo "No signer certificate digest found for $apk"; return 1; }
-            printf '%s\n' "$digests"
-          }
-
-          cert_arm64=$(cert_digest "$ARM64" | tail -n 1)
-          cert_armv7=$(cert_digest "$ARMV7" | tail -n 1)
-          cert_universal=$(cert_digest "$UNIVERSAL" | tail -n 1)
-          test "$cert_arm64" = "$cert_armv7" || { echo "Signing certificate mismatch: ARM64 vs ARMv7"; exit 1; }
-          test "$cert_arm64" = "$cert_universal" || { echo "Signing certificate mismatch: ARM64 vs Universal"; exit 1; }
-          echo "All APKs are signed and use the same certificate SHA-256: $cert_arm64"
-
-          check_abis() {
-            local apk="$1"
-            local expected="$2"
-            local actual
-            actual=$(unzip -Z1 "$apk" | awk -F/ '$1 == "lib" && NF >= 3 && $3 ~ /\.so$/ {print $2}' | sort -u | paste -sd ' ' -)
-            test -n "$actual" || { echo "No native ABI libraries found in $apk"; return 1; }
-            test "$actual" = "$expected" || {
-              echo "ABI mismatch in $apk: expected [$expected], found [$actual]"
-              return 1
-            }
-            echo "$(basename "$apk"): ABI [$actual] OK"
-          }
-
-          check_abis "$ARM64" "arm64-v8a"
-          check_abis "$ARMV7" "armeabi-v7a"
-          check_abis "$UNIVERSAL" "arm64-v8a armeabi-v7a"
-
-          for apk in "$ARM64" "$ARMV7" "$UNIVERSAL"; do
-            "$ZIPALIGN" -c -v 4 "$apk"
-            echo "$(basename "$apk"): zipalign OK ($(stat -c '%s' "$apk") bytes)"
-          done
-
-      - name: Upload verified APKs as workflow artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: shuttle-apks-release
-          path: source/app/build/outputs/apk/standalone/release/*.apk
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Publish separate APK files to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            source/app/build/outputs/apk/standalone/release/shuttle-standalone-v1-arm64.apk
-            source/app/build/outputs/apk/standalone/release/shuttle-standalone-v1-armv7.apk
-            source/app/build/outputs/apk/standalone/release/shuttle-standalone-v1.apk
-          fail_on_unmatched_files: true
-          generate_release_notes: true
-, f'versionName = "{version}"', content, count=1)
-          content, code_count = re.subn(r'(?m)^versionCode\\s*=\\s*"[^"]*"\\s*        env:
-          SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          test -n "$SIGNING_STORE_PASSWORD"
-          test -n "$SIGNING_KEY_ALIAS"
-          test -n "$SIGNING_KEY_PASSWORD"
-          ./gradlew --no-daemon :app:assembleStandaloneRelease
-
-      - name: Verify APK signatures, certificates and ABIs
-        shell: bash
-        run: |
-          set -euo pipefail
-          APK_DIR="source/app/build/outputs/apk/standalone/release"
-          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
-          ZIPALIGN="$ANDROID_HOME/build-tools/36.0.0/zipalign"
-
-          test -x "$APKSIGNER"
-          test -x "$ZIPALIGN"
-          test -d "$APK_DIR"
-
-          ARM64="$APK_DIR/shuttle-standalone-v1-arm64.apk"
-          ARMV7="$APK_DIR/shuttle-standalone-v1-armv7.apk"
-          UNIVERSAL="$APK_DIR/shuttle-standalone-v1.apk"
-          for apk in "$ARM64" "$ARMV7" "$UNIVERSAL"; do
-            test -s "$apk" || { echo "Missing expected APK: $apk"; exit 1; }
-          done
-
-          apk_count=$(find "$APK_DIR" -maxdepth 1 -type f -name '*.apk' | wc -l)
-          test "$apk_count" -eq 3 || { echo "Expected exactly 3 APKs, found $apk_count"; exit 1; }
-
-          cert_digest() {
-            local apk="$1"
-            local report
-            report=$("$APKSIGNER" verify --verbose --print-certs "$apk" 2>&1) || {
-              echo "$report"
-              echo "APK signature verification failed: $apk"
-              return 1
-            }
-            echo "$report"
-            local digests
-            digests=$(printf '%s\n' "$report" | sed -n 's/.*certificate SHA-256 digest: //p' | sort -u)
-            test -n "$digests" || { echo "No signer certificate digest found for $apk"; return 1; }
-            printf '%s\n' "$digests"
-          }
-
-          cert_arm64=$(cert_digest "$ARM64" | tail -n 1)
-          cert_armv7=$(cert_digest "$ARMV7" | tail -n 1)
-          cert_universal=$(cert_digest "$UNIVERSAL" | tail -n 1)
-          test "$cert_arm64" = "$cert_armv7" || { echo "Signing certificate mismatch: ARM64 vs ARMv7"; exit 1; }
-          test "$cert_arm64" = "$cert_universal" || { echo "Signing certificate mismatch: ARM64 vs Universal"; exit 1; }
-          echo "All APKs are signed and use the same certificate SHA-256: $cert_arm64"
-
-          check_abis() {
-            local apk="$1"
-            local expected="$2"
-            local actual
-            actual=$(unzip -Z1 "$apk" | awk -F/ '$1 == "lib" && NF >= 3 && $3 ~ /\.so$/ {print $2}' | sort -u | paste -sd ' ' -)
-            test -n "$actual" || { echo "No native ABI libraries found in $apk"; return 1; }
-            test "$actual" = "$expected" || {
-              echo "ABI mismatch in $apk: expected [$expected], found [$actual]"
-              return 1
-            }
-            echo "$(basename "$apk"): ABI [$actual] OK"
-          }
-
-          check_abis "$ARM64" "arm64-v8a"
-          check_abis "$ARMV7" "armeabi-v7a"
-          check_abis "$UNIVERSAL" "arm64-v8a armeabi-v7a"
-
-          for apk in "$ARM64" "$ARMV7" "$UNIVERSAL"; do
-            "$ZIPALIGN" -c -v 4 "$apk"
-            echo "$(basename "$apk"): zipalign OK ($(stat -c '%s' "$apk") bytes)"
-          done
-
-      - name: Upload verified APKs as workflow artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: shuttle-apks-release
-          path: source/app/build/outputs/apk/standalone/release/*.apk
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Publish separate APK files to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            source/app/build/outputs/apk/standalone/release/shuttle-standalone-v1-arm64.apk
-            source/app/build/outputs/apk/standalone/release/shuttle-standalone-v1-armv7.apk
-            source/app/build/outputs/apk/standalone/release/shuttle-standalone-v1.apk
-          fail_on_unmatched_files: true
-          generate_release_notes: true
-, f'versionCode = "{version_code}"', content, count=1)
-          if name_count != 1 or code_count != 1:
-              raise SystemExit("Could not uniquely update versionName and versionCode in gradle/libs.versions.toml")
-          catalog.write_text(content)
-          print(f"Building Shuttle {version} with Android versionCode {version_code}")
+          catalog = Path('gradle/libs.versions.toml')
+          rows = catalog.read_text().splitlines()
+          name_found = code_found = False
+          for index, row in enumerate(rows):
+              if row.startswith('versionName = '):
+                  rows[index] = f'versionName = "{version}"'
+                  name_found = True
+              elif row.startswith('versionCode = '):
+                  rows[index] = f'versionCode = "{version_code}"'
+                  code_found = True
+          if not name_found or not code_found:
+              raise SystemExit('Could not find versionName/versionCode in gradle/libs.versions.toml')
+          catalog.write_text('\n'.join(rows) + '\n')
+          print(f'Building Shuttle {version} (Android versionCode {version_code})')
           PY
 
       - name: Build standalone release APKs
