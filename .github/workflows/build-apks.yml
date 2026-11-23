@@ -75,3 +75,5 @@ jobs:
           path: source/app/build/outputs/apk/standalone/release/*.apk
           if-no-files-found: error
           retention-days: 30
+
+# Rebuild trigger after release signing secrets were configured.
