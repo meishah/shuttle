@@ -28,14 +28,15 @@ Download APKs from [GitHub Releases](https://github.com/meishah/shuttle/releases
 
 ## Screenshots
 
-### Home — connected
-![Shuttle home screen while connected](Screenshots/Screenshot_20261123_171556_Shuttle.jpg)
+<p align="center">
+  <img src="Screenshots/Screenshot_20261123_171556_Shuttle.jpg" alt="Shuttle home screen while connected" width="31%" />
+  <img src="Screenshots/Screenshot_20261123_171617_Shuttle.jpg" alt="Shuttle home screen while disconnected" width="31%" />
+  <img src="Screenshots/Screenshot_20261123_171626_Shuttle.jpg" alt="Shuttle settings screen" width="31%" />
+</p>
 
-### Home — disconnected
-![Shuttle home screen while disconnected](Screenshots/Screenshot_20261123_171617_Shuttle.jpg)
-
-### Settings
-![Shuttle settings screen](Screenshots/Screenshot_20261123_171626_Shuttle.jpg)
+<p align="center">
+  <sub>Connected</sub> &nbsp;&nbsp;&nbsp; <sub>Disconnected</sub> &nbsp;&nbsp;&nbsp; <sub>Settings</sub>
+</p>
 
 ## Usage
 
