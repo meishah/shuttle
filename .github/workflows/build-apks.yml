@@ -36,15 +36,32 @@ jobs:
         with:
           packages: platform-tools
 
-      # This project uses compileSdk 37 with minorApiLevel 2.
       - name: Install Android SDK Platform 37.2
         run: |
           sdkmanager --list --channel=3 | grep -E 'platforms;android-37|build-tools;37' || true
           yes | sdkmanager --channel=3 "platforms;android-37.2"
 
+      - name: Prepare release signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          test -n "$KEYSTORE_BASE64" || { echo "Missing GitHub Secret: KEYSTORE_BASE64"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/shuttle-signing"
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/shuttle-signing/shuttle-release.jks"
+          test -s "$RUNNER_TEMP/shuttle-signing/shuttle-release.jks"
+          echo "KEY_STORE_PATH=$RUNNER_TEMP/shuttle-signing/shuttle-release.jks" >> "$GITHUB_ENV"
+
       - name: Build standalone release APKs
         working-directory: source
-        run: ./gradlew --no-daemon :app:assembleStandaloneRelease
+        env:
+          SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          test -n "$SIGNING_STORE_PASSWORD"
+          test -n "$SIGNING_KEY_ALIAS"
+          test -n "$SIGNING_KEY_PASSWORD"
+          ./gradlew --no-daemon :app:assembleStandaloneRelease
 
       - name: Verify APK outputs
         run: |
