@@ -28,9 +28,14 @@ Get the latest APK from [Releases](https://github.com/meishah/shuttle/releases) 
 
 ## Screenshots
 
-![Home — connected](screenshots/home-connected.jpg)
-![Home — disconnected](screenshots/home-disconnected.jpg)
-![Settings](screenshots/settings.jpg)
+### Home — connected
+![Shuttle home screen while connected](Screenshots/Screenshot_20261123_171556_Shuttle.jpg)
+
+### Home — disconnected
+![Shuttle home screen while disconnected](Screenshots/Screenshot_20261123_171617_Shuttle.jpg)
+
+### Settings
+![Shuttle settings screen](Screenshots/Screenshot_20261123_171626_Shuttle.jpg)
 
 ## Usage
 
