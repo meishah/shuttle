@@ -36,10 +36,9 @@ jobs:
         with:
           packages: platform-tools
 
-      - name: Install Android SDK Platform 37.2
+      - name: Install Android SDK Platform and Build Tools
         run: |
-          sdkmanager --list --channel=3 | grep -E 'platforms;android-37|build-tools;37' || true
-          yes | sdkmanager --channel=3 "platforms;android-37.2"
+          yes | sdkmanager --channel=3 "platforms;android-37.2" "build-tools;36.0.0"
 
       - name: Prepare release signing key
         env:
@@ -63,17 +62,76 @@ jobs:
           test -n "$SIGNING_KEY_PASSWORD"
           ./gradlew --no-daemon :app:assembleStandaloneRelease
 
-      - name: Verify APK outputs
+      - name: Verify APK signatures, certificates and ABIs
+        shell: bash
         run: |
-          find source/app/build/outputs/apk/standalone/release -maxdepth 1 -type f -name '*.apk' -print
-          test "$(find source/app/build/outputs/apk/standalone/release -maxdepth 1 -type f -name '*.apk' | wc -l)" -ge 3
+          set -euo pipefail
+          APK_DIR="source/app/build/outputs/apk/standalone/release"
+          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          ZIPALIGN="$ANDROID_HOME/build-tools/36.0.0/zipalign"
 
-      - name: Upload APKs
+          test -x "$APKSIGNER"
+          test -x "$ZIPALIGN"
+          test -d "$APK_DIR"
+
+          ARM64="$APK_DIR/shuttle-standalone-v1-arm64.apk"
+          ARMV7="$APK_DIR/shuttle-standalone-v1-armv7.apk"
+          UNIVERSAL="$APK_DIR/shuttle-standalone-v1.apk"
+          for apk in "$ARM64" "$ARMV7" "$UNIVERSAL"; do
+            test -s "$apk" || { echo "Missing expected APK: $apk"; exit 1; }
+          done
+
+          apk_count=$(find "$APK_DIR" -maxdepth 1 -type f -name '*.apk' | wc -l)
+          test "$apk_count" -eq 3 || { echo "Expected exactly 3 APKs, found $apk_count"; exit 1; }
+
+          cert_digest() {
+            local apk="$1"
+            local report
+            report=$("$APKSIGNER" verify --verbose --print-certs "$apk" 2>&1) || {
+              echo "$report"
+              echo "APK signature verification failed: $apk"
+              return 1
+            }
+            echo "$report"
+            local digests
+            digests=$(printf '%s\n' "$report" | sed -n 's/.*certificate SHA-256 digest: //p' | sort -u)
+            test -n "$digests" || { echo "No signer certificate digest found for $apk"; return 1; }
+            printf '%s\n' "$digests"
+          }
+
+          cert_arm64=$(cert_digest "$ARM64" | tail -n 1)
+          cert_armv7=$(cert_digest "$ARMV7" | tail -n 1)
+          cert_universal=$(cert_digest "$UNIVERSAL" | tail -n 1)
+          test "$cert_arm64" = "$cert_armv7" || { echo "Signing certificate mismatch: ARM64 vs ARMv7"; exit 1; }
+          test "$cert_arm64" = "$cert_universal" || { echo "Signing certificate mismatch: ARM64 vs Universal"; exit 1; }
+          echo "All APKs are signed and use the same certificate SHA-256: $cert_arm64"
+
+          check_abis() {
+            local apk="$1"
+            local expected="$2"
+            local actual
+            actual=$(unzip -Z1 "$apk" | awk -F/ '$1 == "lib" && NF >= 3 && $3 ~ /\\.so$/ {print $2}' | sort -u | paste -sd ' ' -)
+            test -n "$actual" || { echo "No native ABI libraries found in $apk"; return 1; }
+            test "$actual" = "$expected" || {
+              echo "ABI mismatch in $apk: expected [$expected], found [$actual]"
+              return 1
+            }
+            echo "$(basename "$apk"): ABI [$actual] OK"
+          }
+
+          check_abis "$ARM64" "arm64-v8a"
+          check_abis "$ARMV7" "armeabi-v7a"
+          check_abis "$UNIVERSAL" "arm64-v8a armeabi-v7a"
+
+          for apk in "$ARM64" "$ARMV7" "$UNIVERSAL"; do
+            "$ZIPALIGN" -c -v 4 "$apk"
+            echo "$(basename "$apk"): zipalign OK ($(stat -c '%s' "$apk") bytes)"
+          done
+
+      - name: Upload verified APKs
         uses: actions/upload-artifact@v4
         with:
           name: shuttle-apks-release
           path: source/app/build/outputs/apk/standalone/release/*.apk
           if-no-files-found: error
           retention-days: 30
-
-# Rebuild trigger after release signing secrets were configured.
