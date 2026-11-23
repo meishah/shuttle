@@ -36,11 +36,11 @@ jobs:
         with:
           packages: platform-tools
 
-      # compileSdkMinor=2 requires the API 37 extension platform.
-      # Do not downgrade: the app references API 37-only permission constants.
-      - name: Install Android API 37 extension 2
+      # This project uses compileSdk 37 with minorApiLevel 2.
+      - name: Install Android SDK Platform 37.2
         run: |
-          yes | sdkmanager --channel=3 "platforms;android-37-ext2" "build-tools;37.0.0"
+          sdkmanager --list --channel=3 | grep -E 'platforms;android-37|build-tools;37' || true
+          yes | sdkmanager --channel=3 "platforms;android-37.2"
 
       - name: Build standalone debug APKs
         working-directory: source
