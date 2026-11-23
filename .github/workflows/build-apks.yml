@@ -13,6 +13,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Extract uploaded source archive
+        run: |
+          mkdir source
+          unzip -q shuttle-code-latest.zip -d source
+          test -f source/gradlew
+          test -f source/settings.gradle.kts
+          chmod +x source/gradlew
+
       - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
@@ -23,14 +31,13 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Build standalone debug APKs
-        run: |
-          chmod +x ./gradlew
-          ./gradlew --no-daemon :app:assembleStandaloneDebug
+        working-directory: source
+        run: ./gradlew --no-daemon :app:assembleStandaloneDebug
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
           name: shuttle-apks-debug
-          path: app/build/outputs/apk/standalone/debug/*.apk
+          path: source/app/build/outputs/apk/standalone/debug/*.apk
           if-no-files-found: error
           retention-days: 30
