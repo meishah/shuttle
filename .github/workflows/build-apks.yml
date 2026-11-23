@@ -36,8 +36,19 @@ jobs:
         with:
           packages: platform-tools
 
-      - name: Install Android platform 37
-        run: sdkmanager "platforms;android-37"
+      # The uploaded project currently requests Android API 37.2, which
+      # is not published in the runner's SDK package index yet. For this
+      # CI-only debug build, compile/target against the available API 36.
+      # The source archive and repository are not modified.
+      - name: Install Android platform 36
+        run: sdkmanager "platforms;android-36"
+
+      - name: Apply CI-only SDK compatibility override
+        working-directory: source
+        run: |
+          sed -i 's/compileSdk = "37"/compileSdk = "36"/' gradle/libs.versions.toml
+          sed -i 's/compileSdkMinor = "2"/compileSdkMinor = "0"/' gradle/libs.versions.toml
+          sed -i 's/targetSdk = "37"/targetSdk = "36"/' gradle/libs.versions.toml
 
       - name: Build standalone debug APKs
         working-directory: source
