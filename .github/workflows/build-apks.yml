@@ -42,19 +42,19 @@ jobs:
           sdkmanager --list --channel=3 | grep -E 'platforms;android-37|build-tools;37' || true
           yes | sdkmanager --channel=3 "platforms;android-37.2"
 
-      - name: Build standalone debug APKs
+      - name: Build standalone release APKs
         working-directory: source
-        run: ./gradlew --no-daemon :app:assembleStandaloneDebug
+        run: ./gradlew --no-daemon :app:assembleStandaloneRelease
 
       - name: Verify APK outputs
         run: |
-          find source/app/build/outputs/apk/standalone/debug -maxdepth 1 -type f -name '*.apk' -print
-          test "$(find source/app/build/outputs/apk/standalone/debug -maxdepth 1 -type f -name '*.apk' | wc -l)" -ge 3
+          find source/app/build/outputs/apk/standalone/release -maxdepth 1 -type f -name '*.apk' -print
+          test "$(find source/app/build/outputs/apk/standalone/release -maxdepth 1 -type f -name '*.apk' | wc -l)" -ge 3
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
-          name: shuttle-apks-debug
-          path: source/app/build/outputs/apk/standalone/debug/*.apk
+          name: shuttle-apks-release
+          path: source/app/build/outputs/apk/standalone/release/*.apk
           if-no-files-found: error
           retention-days: 30
