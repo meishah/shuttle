@@ -14,7 +14,7 @@ A lightweight Android VPN client for OpenVPN, WireGuard and AmneziaWG.
 - **Backup & export** — configs as a ZIP file, manual in-app editing
 - **Connection log** for troubleshooting
 - **Themes** — light, dark, auto; **languages** — English and Persian
-- Very low battery use, no extra permissions, arm64 only
+- **APK variants** — universal, arm64-v8a (64-bit ARM) and armeabi-v7a (32-bit ARM)
 
 ## Download
 
@@ -22,9 +22,9 @@ Get the latest APK from [Releases](https://github.com/meishah/shuttle/releases) 
 
 | Variant | For |
 |---|---|
-| `universal` | Any device |
-| `arm64-v8a` | Most modern phones (64-bit ARM) |
-| `armeabi-v7a` | Older phones (32-bit ARM) |
+| `universal` | Most Android devices; includes supported ARM architectures |
+| `arm64-v8a` | Modern 64-bit ARM devices |
+| `armeabi-v7a` | Older 32-bit ARM devices |
 
 ## Screenshots
 
@@ -50,7 +50,7 @@ Get the latest APK from [Releases](https://github.com/meishah/shuttle/releases) 
 ./build.sh assembleStandaloneRelease
 ```
 
-Requires JDK 21 and the Android SDK (API 37).
+Requires JDK 21 and Android SDK Platform 37 (extension level 2).
 
 ## Credits & license
 
