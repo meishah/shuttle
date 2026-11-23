@@ -36,23 +36,20 @@ jobs:
         with:
           packages: platform-tools
 
-      # The uploaded project currently requests Android API 37.2, which
-      # is not published in the runner's SDK package index yet. For this
-      # CI-only debug build, compile/target against the available API 36.
-      # The source archive and repository are not modified.
-      - name: Install Android platform 36
-        run: sdkmanager "platforms;android-36"
-
-      - name: Apply CI-only SDK compatibility override
-        working-directory: source
+      # compileSdkMinor=2 requires the API 37 extension platform.
+      # Do not downgrade: the app references API 37-only permission constants.
+      - name: Install Android API 37 extension 2
         run: |
-          sed -i 's/compileSdk = "37"/compileSdk = "36"/' gradle/libs.versions.toml
-          sed -i 's/compileSdkMinor = "2"/compileSdkMinor = "0"/' gradle/libs.versions.toml
-          sed -i 's/targetSdk = "37"/targetSdk = "36"/' gradle/libs.versions.toml
+          yes | sdkmanager --channel=3 "platforms;android-37-ext2" "build-tools;37.0.0"
 
       - name: Build standalone debug APKs
         working-directory: source
         run: ./gradlew --no-daemon :app:assembleStandaloneDebug
+
+      - name: Verify APK outputs
+        run: |
+          find source/app/build/outputs/apk/standalone/debug -maxdepth 1 -type f -name '*.apk' -print
+          test "$(find source/app/build/outputs/apk/standalone/debug -maxdepth 1 -type f -name '*.apk' | wc -l)" -ge 3
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4
