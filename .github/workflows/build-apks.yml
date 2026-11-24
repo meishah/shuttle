@@ -114,11 +114,11 @@ jobs:
           test -x "$ZIPALIGN"
           test -d "$APK_DIR"
 
-          ARM64="$APK_DIR/shuttle-standalone-v1-arm64.apk"
-          ARMV7="$APK_DIR/shuttle-standalone-v1-armv7.apk"
-          UNIVERSAL="$APK_DIR/shuttle-standalone-v1.apk"
+          ARM64=$(find "$APK_DIR" -maxdepth 1 -type f -name '*-arm64.apk' | sort | head -n 1)
+          ARMV7=$(find "$APK_DIR" -maxdepth 1 -type f -name '*-armv7.apk' | sort | head -n 1)
+          UNIVERSAL=$(find "$APK_DIR" -maxdepth 1 -type f -name '*.apk' ! -name '*-arm64.apk' ! -name '*-armv7.apk' | sort | head -n 1)
           for apk in "$ARM64" "$ARMV7" "$UNIVERSAL"; do
-            test -s "$apk" || { echo "Missing expected APK: $apk"; exit 1; }
+            test -n "$apk" && test -s "$apk" || { echo "Missing expected APK: $apk"; exit 1; }
           done
 
           apk_count=$(find "$APK_DIR" -maxdepth 1 -type f -name '*.apk' | wc -l)
@@ -181,8 +181,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            source/app/build/outputs/apk/standalone/release/shuttle-standalone-v1-arm64.apk
-            source/app/build/outputs/apk/standalone/release/shuttle-standalone-v1-armv7.apk
-            source/app/build/outputs/apk/standalone/release/shuttle-standalone-v1.apk
+            source/app/build/outputs/apk/standalone/release/*.apk
           fail_on_unmatched_files: true
-          generate_release_notes: true
