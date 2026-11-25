@@ -41,9 +41,9 @@ Download APKs from [GitHub Releases](https://github.com/meishah/shuttle/releases
 ## Usage
 
 1. Install the APK and import VPN configurations using **+ → Import** (a single file or ZIP archive).
-2. Use **Ping servers** to check latency, then select a configuration and tap **Connect**.
-3. Long-press a configuration to rename, delete, move it to a group or edit it.
-4. Long-press a group chip to change the group order.
+2. Use **Ping servers** to check latency, then tap a configuration to connect; tap it again to disconnect.
+3. Tap the **⋮** menu beside a configuration to pin, share, edit, rename, move it to a group, ping it, or delete it.
+4. Long-press a group chip to reorder, rename or delete the group.
 
 ## Build from source
 
